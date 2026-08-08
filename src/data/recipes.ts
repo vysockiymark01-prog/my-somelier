@@ -6,6 +6,8 @@ export type Category =
   | 'Шоты'
   | 'Горячие'
 
+export type Mood = 'Расслабиться' | 'Взбодриться' | 'Романтика' | 'Вечеринка' | 'Уют'
+
 export interface Ingredient {
   name: string
   amount: string
@@ -16,6 +18,7 @@ export interface Recipe {
   name: string
   emoji: string
   category: Category
+  mood: Mood
   glass: string
   abv: 'Безалкогольный' | 'Лёгкий' | 'Крепкий'
   time: string
@@ -34,9 +37,12 @@ export const CATEGORIES: Category[] = [
   'Горячие',
 ]
 
+export const MOODS: Mood[] = ['Расслабиться', 'Взбодриться', 'Романтика', 'Вечеринка', 'Уют']
+
 export const RECIPES: Recipe[] = [
   {
     id: 'mojito',
+    mood: 'Вечеринка',
     name: 'Мохито',
     emoji: '🍃',
     category: 'Освежающие',
@@ -64,6 +70,7 @@ export const RECIPES: Recipe[] = [
   },
   {
     id: 'margarita',
+    mood: 'Вечеринка',
     name: 'Маргарита',
     emoji: '🍹',
     category: 'Классика',
@@ -89,6 +96,7 @@ export const RECIPES: Recipe[] = [
   },
   {
     id: 'old-fashioned',
+    mood: 'Расслабиться',
     name: 'Олд Фэшн',
     emoji: '🥃',
     category: 'Классика',
@@ -113,6 +121,7 @@ export const RECIPES: Recipe[] = [
   },
   {
     id: 'negroni',
+    mood: 'Расслабиться',
     name: 'Негрони',
     emoji: '🍸',
     category: 'Крепкие',
@@ -134,6 +143,7 @@ export const RECIPES: Recipe[] = [
   },
   {
     id: 'cosmopolitan',
+    mood: 'Вечеринка',
     name: 'Космополитен',
     emoji: '🍹',
     category: 'Классика',
@@ -157,6 +167,7 @@ export const RECIPES: Recipe[] = [
   },
   {
     id: 'daiquiri',
+    mood: 'Вечеринка',
     name: 'Дайкири',
     emoji: '🍹',
     category: 'Освежающие',
@@ -178,6 +189,7 @@ export const RECIPES: Recipe[] = [
   },
   {
     id: 'whiskey-sour',
+    mood: 'Расслабиться',
     name: 'Виски Сауэр',
     emoji: '🥃',
     category: 'Классика',
@@ -200,6 +212,7 @@ export const RECIPES: Recipe[] = [
   },
   {
     id: 'pina-colada',
+    mood: 'Вечеринка',
     name: 'Пина Колада',
     emoji: '🍍',
     category: 'Освежающие',
@@ -222,6 +235,7 @@ export const RECIPES: Recipe[] = [
   },
   {
     id: 'moscow-mule',
+    mood: 'Взбодриться',
     name: 'Москоу Мюл',
     emoji: '🥂',
     category: 'Освежающие',
@@ -244,6 +258,7 @@ export const RECIPES: Recipe[] = [
   },
   {
     id: 'aperol-spritz',
+    mood: 'Взбодриться',
     name: 'Апероль Шпритц',
     emoji: '🍊',
     category: 'Освежающие',
@@ -266,6 +281,7 @@ export const RECIPES: Recipe[] = [
   },
   {
     id: 'bloody-mary',
+    mood: 'Взбодриться',
     name: 'Кровавая Мэри',
     emoji: '🍅',
     category: 'Классика',
@@ -292,6 +308,7 @@ export const RECIPES: Recipe[] = [
   },
   {
     id: 'manhattan',
+    mood: 'Романтика',
     name: 'Манхэттен',
     emoji: '🍸',
     category: 'Классика',
@@ -314,6 +331,7 @@ export const RECIPES: Recipe[] = [
   },
   {
     id: 'gin-tonic',
+    mood: 'Расслабиться',
     name: 'Джин-тоник',
     emoji: '🍋',
     category: 'Освежающие',
@@ -336,6 +354,7 @@ export const RECIPES: Recipe[] = [
   },
   {
     id: 'espresso-martini',
+    mood: 'Взбодриться',
     name: 'Эспрессо Мартини',
     emoji: '☕',
     category: 'Крепкие',
@@ -361,6 +380,7 @@ export const RECIPES: Recipe[] = [
   },
   {
     id: 'shirley-temple',
+    mood: 'Уют',
     name: 'Ширли Темпл',
     emoji: '🍒',
     category: 'Безалкогольные',
@@ -382,6 +402,7 @@ export const RECIPES: Recipe[] = [
   },
   {
     id: 'virgin-mojito',
+    mood: 'Взбодриться',
     name: 'Безалкогольный мохито',
     emoji: '🍃',
     category: 'Безалкогольные',
@@ -405,6 +426,7 @@ export const RECIPES: Recipe[] = [
   },
   {
     id: 'kir-royale',
+    mood: 'Романтика',
     name: 'Кир Рояль',
     emoji: '🥂',
     category: 'Классика',
@@ -424,6 +446,7 @@ export const RECIPES: Recipe[] = [
   },
   {
     id: 'b52',
+    mood: 'Вечеринка',
     name: 'Б-52',
     emoji: '🥃',
     category: 'Шоты',
@@ -445,6 +468,7 @@ export const RECIPES: Recipe[] = [
   },
   {
     id: 'hot-toddy',
+    mood: 'Уют',
     name: 'Хот Тодди',
     emoji: '🍵',
     category: 'Горячие',
@@ -469,6 +493,7 @@ export const RECIPES: Recipe[] = [
   },
   {
     id: 'mulled-wine',
+    mood: 'Уют',
     name: 'Глинтвейн',
     emoji: '🍷',
     category: 'Горячие',
@@ -496,4 +521,18 @@ export const RECIPES: Recipe[] = [
 
 export function getRecipeById(id: string): Recipe | undefined {
   return RECIPES.find((r) => r.id === id)
+}
+
+// Нормализация названия ингредиента для сравнения ("сок лайма" и "лайм"
+// всё равно останутся разными строками — это ожидаемо, каталог не
+// настолько умный, чтобы понимать синонимы).
+export function getAllIngredientNames(): string[] {
+  const set = new Set<string>()
+  RECIPES.forEach((r) => r.ingredients.forEach((ing) => set.add(ing.name)))
+  return Array.from(set).sort((a, b) => a.localeCompare(b, 'ru'))
+}
+
+// Сколько ингредиентов рецепта отсутствует среди выбранных пользователем.
+export function countMissingIngredients(recipe: Recipe, have: Set<string>): number {
+  return recipe.ingredients.filter((ing) => !have.has(ing.name)).length
 }

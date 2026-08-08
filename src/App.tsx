@@ -5,6 +5,10 @@ import { BottomNav } from './components/BottomNav'
 import { CatalogPage } from './pages/CatalogPage'
 import { RecipeDetailPage } from './pages/RecipeDetailPage'
 import { RandomizerPage } from './pages/RandomizerPage'
+import { BarPage } from './pages/BarPage'
+import { SwipePage } from './pages/SwipePage'
+import { QuizPage } from './pages/QuizPage'
+import { NewRecipePage } from './pages/NewRecipePage'
 import { AuthPage } from './pages/AuthPage'
 import { ProfileSetupPage } from './pages/ProfileSetupPage'
 import { ProfilePage } from './pages/ProfilePage'
@@ -47,6 +51,10 @@ function App() {
           <Route path="/" element={<CatalogPage />} />
           <Route path="/recipe/:id" element={<RecipeDetailPage />} />
           <Route path="/random" element={<RandomizerPage />} />
+          <Route path="/bar" element={<BarPage />} />
+          <Route path="/swipe" element={<SwipePage />} />
+          <Route path="/quiz" element={<QuizPage />} />
+          <Route path="/recipe/new" element={<NewRecipePage />} />
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/setup-profile" element={<ProfileSetupPage />} />
           <Route path="/friends" element={<FriendsPage />} />

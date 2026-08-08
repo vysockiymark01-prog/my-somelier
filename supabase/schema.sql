@@ -210,6 +210,47 @@ create policy "Можно убрать только свой голос"
   to authenticated
   using (auth.uid() = voter_id);
 
+-- Собственные рецепты пользователей (не входят в статический каталог
+-- src/data/recipes.ts). Видны и редактируются только своим владельцем —
+-- сделано намеренно приватным (личная кулинарная книга), а не общим.
+create table if not exists public.custom_recipes (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references public.profiles (id) on delete cascade,
+  name text not null,
+  emoji text default '🍹',
+  category text not null,
+  glass text,
+  abv text not null,
+  time text,
+  ingredients jsonb not null default '[]'::jsonb,
+  steps jsonb not null default '[]'::jsonb,
+  garnish text,
+  tip text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.custom_recipes enable row level security;
+
+create policy "custom_recipes_select_own"
+  on public.custom_recipes for select
+  to authenticated
+  using (auth.uid() = owner_id);
+
+create policy "custom_recipes_insert_own"
+  on public.custom_recipes for insert
+  to authenticated
+  with check (auth.uid() = owner_id);
+
+create policy "custom_recipes_update_own"
+  on public.custom_recipes for update
+  to authenticated
+  using (auth.uid() = owner_id);
+
+create policy "custom_recipes_delete_own"
+  on public.custom_recipes for delete
+  to authenticated
+  using (auth.uid() = owner_id);
+
 -- Индексы для быстрого поиска
 create index if not exists idx_friendships_requester on public.friendships (requester_id);
 create index if not exists idx_friendships_addressee on public.friendships (addressee_id);
@@ -218,3 +259,4 @@ create index if not exists idx_party_guests_guest on public.party_guests (guest_
 create index if not exists idx_parties_host on public.parties (host_id);
 create index if not exists idx_party_menu_votes_party on public.party_menu_votes (party_id);
 create index if not exists idx_party_menu_votes_voter on public.party_menu_votes (voter_id);
+create index if not exists idx_custom_recipes_owner on public.custom_recipes (owner_id);

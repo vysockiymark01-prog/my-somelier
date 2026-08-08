@@ -53,3 +53,19 @@ export interface PartyMenuVoteRow {
   recipe_id: string
   created_at: string
 }
+
+export interface CustomRecipeRow {
+  id: string
+  owner_id: string
+  name: string
+  emoji: string
+  category: string
+  glass: string
+  abv: string
+  time: string
+  ingredients: { name: string; amount: string }[]
+  steps: string[]
+  garnish: string | null
+  tip: string | null
+  created_at: string
+}

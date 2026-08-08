@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getRecipeById } from '../data/recipes'
+import { getRecipeById, type Ingredient } from '../data/recipes'
+import { getMyRecipeById, deleteCustomRecipe } from '../lib/customRecipes'
+import { isSupabaseConfigured } from '../lib/supabase'
+import { useAuth } from '../store/auth'
 import {
   baristaPlayer,
   DEFAULT_VOICE_SETTINGS,
@@ -8,10 +11,67 @@ import {
   type PlayerState,
 } from '../lib/voice'
 
+interface DisplayRecipe {
+  id: string
+  name: string
+  emoji: string
+  glass: string
+  time: string
+  abv: string
+  ingredients: Ingredient[]
+  steps: string[]
+  garnish?: string | null
+  tip?: string | null
+  isCustom: boolean
+  ownerId?: string
+}
+
 export function RecipeDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const recipe = id ? getRecipeById(id) : undefined
+  const { user } = useAuth()
+
+  const [recipe, setRecipe] = useState<DisplayRecipe | null | undefined>(undefined)
+  const [deleting, setDeleting] = useState(false)
+
+  useEffect(() => {
+    if (!id) {
+      setRecipe(null)
+      return
+    }
+    const staticRecipe = getRecipeById(id)
+    if (staticRecipe) {
+      setRecipe({ ...staticRecipe, isCustom: false })
+      return
+    }
+    if (!isSupabaseConfigured) {
+      setRecipe(null)
+      return
+    }
+    setRecipe(undefined)
+    getMyRecipeById(id)
+      .then((row) => {
+        if (!row) {
+          setRecipe(null)
+          return
+        }
+        setRecipe({
+          id: row.id,
+          name: row.name,
+          emoji: row.emoji,
+          glass: row.glass,
+          time: row.time,
+          abv: row.abv,
+          ingredients: row.ingredients,
+          steps: row.steps,
+          garnish: row.garnish,
+          tip: row.tip,
+          isCustom: true,
+          ownerId: row.owner_id,
+        })
+      })
+      .catch(() => setRecipe(null))
+  }, [id])
 
   const [playerState, setPlayerState] = useState<PlayerState>(baristaPlayer.state)
   const [rate, setRate] = useState(DEFAULT_VOICE_SETTINGS.rate)
@@ -24,6 +84,14 @@ export function RecipeDetailPage() {
       baristaPlayer.stop()
     }
   }, [])
+
+  if (recipe === undefined) {
+    return (
+      <div className="page">
+        <p className="page-subtitle">Загрузка…</p>
+      </div>
+    )
+  }
 
   if (!recipe) {
     return (
@@ -48,12 +116,30 @@ export function RecipeDetailPage() {
     }
   }
 
+  const handleDelete = async () => {
+    if (!recipe.isCustom) return
+    setDeleting(true)
+    try {
+      await deleteCustomRecipe(recipe.id)
+      navigate('/')
+    } catch {
+      setDeleting(false)
+    }
+  }
+
+  const canDelete = recipe.isCustom && user && recipe.ownerId === user.id
+
   return (
     <div className="page">
-      <div className="row" style={{ marginBottom: 10 }}>
+      <div className="row" style={{ marginBottom: 10, justifyContent: 'space-between' }}>
         <button className="icon-btn" onClick={() => navigate(-1)}>
           ←
         </button>
+        {canDelete && (
+          <button className="icon-btn" onClick={handleDelete} disabled={deleting} aria-label="Удалить">
+            🗑
+          </button>
+        )}
       </div>
 
       <div style={{ fontSize: 52, textAlign: 'center' }}>{recipe.emoji}</div>
@@ -62,6 +148,7 @@ export function RecipeDetailPage() {
       </h1>
       <p className="page-subtitle" style={{ textAlign: 'center' }}>
         {recipe.glass} · {recipe.time} · {recipe.abv}
+        {recipe.isCustom ? ' · 🧑‍🍳 Ваш рецепт' : ''}
       </p>
 
       <div className="card">

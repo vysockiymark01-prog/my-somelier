@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CATEGORIES, RECIPES, type Category, type Recipe } from '../data/recipes'
+import { CATEGORIES, MOODS, RECIPES, type Category, type Mood, type Recipe } from '../data/recipes'
 
 type Strength = 'Любая' | 'Безалкогольный' | 'Лёгкий' | 'Крепкий'
 
@@ -9,14 +9,16 @@ const STRENGTHS: Strength[] = ['Любая', 'Безалкогольный', 'Л
 export function RandomizerPage() {
   const navigate = useNavigate()
   const [category, setCategory] = useState<Category | 'Всё'>('Всё')
+  const [mood, setMood] = useState<Mood | 'Любое'>('Любое')
   const [strength, setStrength] = useState<Strength>('Любая')
   const [rolling, setRolling] = useState(false)
   const [result, setResult] = useState<Recipe | null>(null)
 
   const pool = RECIPES.filter((r) => {
     const matchesCategory = category === 'Всё' || r.category === category
+    const matchesMood = mood === 'Любое' || r.mood === mood
     const matchesStrength = strength === 'Любая' || r.abv === strength
-    return matchesCategory && matchesStrength
+    return matchesCategory && matchesMood && matchesStrength
   })
 
   const handleRoll = () => {
@@ -68,6 +70,21 @@ export function RandomizerPage() {
               onClick={() => setCategory(c)}
             >
               {c}
+            </div>
+          ))}
+        </div>
+
+        <h2 style={{ fontSize: 14, margin: '16px 0 8px', color: 'var(--text-dim)' }}>Настроение</h2>
+        <div className="chip-row">
+          <div
+            className={'chip' + (mood === 'Любое' ? ' active' : '')}
+            onClick={() => setMood('Любое')}
+          >
+            Любое
+          </div>
+          {MOODS.map((m) => (
+            <div key={m} className={'chip' + (mood === m ? ' active' : '')} onClick={() => setMood(m)}>
+              {m}
             </div>
           ))}
         </div>

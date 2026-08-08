@@ -1,7 +1,15 @@
 import { useNavigate } from 'react-router-dom'
-import type { Recipe } from '../data/recipes'
 
-export function RecipeCard({ recipe }: { recipe: Recipe }) {
+interface RecipeCardData {
+  id: string
+  emoji: string
+  name: string
+  glass: string
+  time: string
+  abv: string
+}
+
+export function RecipeCard({ recipe, isCustom }: { recipe: RecipeCardData; isCustom?: boolean }) {
   const navigate = useNavigate()
   return (
     <div className="recipe-card" onClick={() => navigate(`/recipe/${recipe.id}`)}>
@@ -10,7 +18,7 @@ export function RecipeCard({ recipe }: { recipe: Recipe }) {
       <span className="meta">
         {recipe.glass} · {recipe.time}
       </span>
-      <span className="tag">{recipe.abv}</span>
+      <span className="tag">{isCustom ? '🧑‍🍳 Моё' : recipe.abv}</span>
     </div>
   )
 }
