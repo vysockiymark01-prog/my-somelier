@@ -49,7 +49,7 @@ export const useAuth = create<AuthState>((set, get) => ({
     set({ loading: true })
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: window.location.origin },
+      options: { emailRedirectTo: window.location.origin + import.meta.env.BASE_URL },
     })
     set({ loading: false })
     return { error: error?.message ?? null }
