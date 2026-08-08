@@ -20,6 +20,7 @@ function NewRecipeInner() {
   const [steps, setSteps] = useState([''])
   const [garnish, setGarnish] = useState('')
   const [tip, setTip] = useState('')
+  const [isPublic, setIsPublic] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -65,6 +66,7 @@ function NewRecipeInner() {
         steps: cleanSteps,
         garnish,
         tip,
+        isPublic,
       })
       navigate(`/recipe/${recipe.id}`)
     } catch (err) {
@@ -198,6 +200,25 @@ function NewRecipeInner() {
         <div className="form-field">
           <label>Совет (необязательно)</label>
           <input className="text-input" value={tip} onChange={(e) => setTip(e.target.value)} />
+        </div>
+
+        <div
+          className="card"
+          style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}
+          onClick={() => setIsPublic((v) => !v)}
+        >
+          <input
+            type="checkbox"
+            checked={isPublic}
+            onChange={(e) => setIsPublic(e.target.checked)}
+            style={{ width: 20, height: 20 }}
+          />
+          <div>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>Показывать другим пользователям</div>
+            <div className="helper-text" style={{ margin: 0 }}>
+              Рецепт появится в общем разделе «Рецепты сообщества» с вашим именем
+            </div>
+          </div>
         </div>
 
         {error && <p className="error-text">{error}</p>}

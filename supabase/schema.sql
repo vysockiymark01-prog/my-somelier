@@ -211,8 +211,9 @@ create policy "Можно убрать только свой голос"
   using (auth.uid() = voter_id);
 
 -- Собственные рецепты пользователей (не входят в статический каталог
--- src/data/recipes.ts). Видны и редактируются только своим владельцем —
--- сделано намеренно приватным (личная кулинарная книга), а не общим.
+-- src/data/recipes.ts). По умолчанию видны только владельцу (личная
+-- кулинарная книга), но при is_public = true — видны и всем остальным
+-- авторизованным пользователям (раздел «Рецепты сообщества»).
 create table if not exists public.custom_recipes (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references public.profiles (id) on delete cascade,
@@ -226,15 +227,16 @@ create table if not exists public.custom_recipes (
   steps jsonb not null default '[]'::jsonb,
   garnish text,
   tip text,
+  is_public boolean not null default false,
   created_at timestamptz not null default now()
 );
 
 alter table public.custom_recipes enable row level security;
 
-create policy "custom_recipes_select_own"
+create policy "custom_recipes_select_own_or_public"
   on public.custom_recipes for select
   to authenticated
-  using (auth.uid() = owner_id);
+  using (auth.uid() = owner_id or is_public = true);
 
 create policy "custom_recipes_insert_own"
   on public.custom_recipes for insert
@@ -260,3 +262,4 @@ create index if not exists idx_parties_host on public.parties (host_id);
 create index if not exists idx_party_menu_votes_party on public.party_menu_votes (party_id);
 create index if not exists idx_party_menu_votes_voter on public.party_menu_votes (voter_id);
 create index if not exists idx_custom_recipes_owner on public.custom_recipes (owner_id);
+create index if not exists idx_custom_recipes_public on public.custom_recipes (is_public) where is_public = true;

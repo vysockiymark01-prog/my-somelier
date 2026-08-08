@@ -9,6 +9,8 @@ import { BarPage } from './pages/BarPage'
 import { SwipePage } from './pages/SwipePage'
 import { QuizPage } from './pages/QuizPage'
 import { NewRecipePage } from './pages/NewRecipePage'
+import { AchievementsPage } from './pages/AchievementsPage'
+import { PersonalityQuizPage } from './pages/PersonalityQuizPage'
 import { AuthPage } from './pages/AuthPage'
 import { ProfileSetupPage } from './pages/ProfileSetupPage'
 import { ProfilePage } from './pages/ProfilePage'
@@ -55,6 +57,8 @@ function App() {
           <Route path="/swipe" element={<SwipePage />} />
           <Route path="/quiz" element={<QuizPage />} />
           <Route path="/recipe/new" element={<NewRecipePage />} />
+          <Route path="/achievements" element={<AchievementsPage />} />
+          <Route path="/personality" element={<PersonalityQuizPage />} />
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/setup-profile" element={<ProfileSetupPage />} />
           <Route path="/friends" element={<FriendsPage />} />

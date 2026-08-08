@@ -1,15 +1,22 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { CATEGORIES, MOODS, RECIPES, type Category, type Mood, type Recipe } from '../data/recipes'
 
 type Strength = 'Любая' | 'Безалкогольный' | 'Лёгкий' | 'Крепкий'
 
 const STRENGTHS: Strength[] = ['Любая', 'Безалкогольный', 'Лёгкий', 'Крепкий']
 
+interface RandomizerNavState {
+  category?: Category
+  mood?: Mood
+}
+
 export function RandomizerPage() {
   const navigate = useNavigate()
-  const [category, setCategory] = useState<Category | 'Всё'>('Всё')
-  const [mood, setMood] = useState<Mood | 'Любое'>('Любое')
+  const location = useLocation()
+  const initial = (location.state as RandomizerNavState | null) ?? null
+  const [category, setCategory] = useState<Category | 'Всё'>(initial?.category ?? 'Всё')
+  const [mood, setMood] = useState<Mood | 'Любое'>(initial?.mood ?? 'Любое')
   const [strength, setStrength] = useState<Strength>('Любая')
   const [rolling, setRolling] = useState(false)
   const [result, setResult] = useState<Recipe | null>(null)

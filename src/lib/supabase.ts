@@ -67,5 +67,10 @@ export interface CustomRecipeRow {
   steps: string[]
   garnish: string | null
   tip: string | null
+  is_public: boolean
   created_at: string
+}
+
+export interface PublicCustomRecipeRow extends CustomRecipeRow {
+  owner: Pick<Profile, 'username' | 'display_name'> | null
 }

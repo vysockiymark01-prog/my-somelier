@@ -4,6 +4,7 @@ import { getRecipeById, type Ingredient } from '../data/recipes'
 import { getMyRecipeById, deleteCustomRecipe } from '../lib/customRecipes'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { useAuth } from '../store/auth'
+import { hasMade, recordMade } from '../lib/history'
 import {
   baristaPlayer,
   DEFAULT_VOICE_SETTINGS,
@@ -105,6 +106,17 @@ export function RecipeDetailPage() {
     savePreferredVoiceURI(value)
   }
 
+  const [made, setMade] = useState(false)
+  useEffect(() => {
+    if (recipe) setMade(hasMade(recipe.id))
+  }, [recipe])
+
+  const handleMarkMade = () => {
+    if (!recipe) return
+    recordMade(recipe.id, Date.now())
+    setMade(true)
+  }
+
   if (recipe === undefined) {
     return (
       <div className="page">
@@ -170,6 +182,15 @@ export function RecipeDetailPage() {
         {recipe.glass} · {recipe.time} · {recipe.abv}
         {recipe.isCustom ? ' · 🧑‍🍳 Ваш рецепт' : ''}
       </p>
+
+      <button
+        className={'btn btn-block ' + (made ? 'btn-outline' : 'btn-gold')}
+        style={{ marginBottom: 14 }}
+        onClick={handleMarkMade}
+        disabled={made}
+      >
+        {made ? '✅ Приготовлено' : '🍹 Отметить, что приготовил(а)'}
+      </button>
 
       <div className="card">
         <h2 style={{ fontSize: 16, margin: '0 0 10px' }}>Ингредиенты</h2>

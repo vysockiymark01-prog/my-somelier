@@ -44,6 +44,26 @@ export function BarPage() {
     return { ready, almost }
   }, [have])
 
+  // Для каждого недостающего ингредиента считаем, сколько ЕЩЁ рецептов
+  // стало бы полностью готовыми, если бы он появился в баре — так можно
+  // подсказать, какая одна покупка даст максимальный эффект.
+  const bestBuys = useMemo(() => {
+    if (have.size === 0) return []
+    const missingIngredients = allIngredients.filter((name) => !have.has(name))
+    const scored = missingIngredients.map((name) => {
+      const hypothetical = new Set(have)
+      hypothetical.add(name)
+      const unlocked = RECIPES.filter(
+        (r) => countMissingIngredients(r, have) > 0 && countMissingIngredients(r, hypothetical) === 0
+      ).length
+      return { name, unlocked }
+    })
+    return scored
+      .filter((x) => x.unlocked > 0)
+      .sort((a, b) => b.unlocked - a.unlocked)
+      .slice(0, 3)
+  }, [have, allIngredients])
+
   return (
     <div className="page">
       <div className="row" style={{ marginBottom: 10 }}>
@@ -87,6 +107,25 @@ export function BarPage() {
         </div>
       ) : (
         <>
+          {bestBuys.length > 0 && (
+            <div className="card" style={{ borderColor: 'var(--gold)' }}>
+              <h2 style={{ fontSize: 16, margin: '0 0 8px' }}>💡 Что купить в первую очередь</h2>
+              <p className="helper-text" style={{ marginBottom: 10 }}>
+                Одна покупка — и сразу несколько новых коктейлей станут доступны
+              </p>
+              {bestBuys.map((b) => (
+                <div
+                  key={b.name}
+                  className="row"
+                  style={{ justifyContent: 'space-between', marginBottom: 6 }}
+                >
+                  <span>{b.name}</span>
+                  <span className="tag">+{b.unlocked} {b.unlocked === 1 ? 'рецепт' : 'рецепта'}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
           <h2 style={{ fontSize: 16, margin: '18px 0 10px' }}>
             ✅ Можно сделать прямо сейчас ({ready.length})
           </h2>

@@ -1,4 +1,4 @@
-import { supabase, type CustomRecipeRow } from './supabase'
+import { supabase, type CustomRecipeRow, type PublicCustomRecipeRow } from './supabase'
 import type { Ingredient } from '../data/recipes'
 
 function requireClient() {
@@ -18,6 +18,7 @@ export interface NewCustomRecipeInput {
   steps: string[]
   garnish: string
   tip: string
+  isPublic: boolean
 }
 
 export async function listMyRecipes(ownerId: string): Promise<CustomRecipeRow[]> {
@@ -29,6 +30,21 @@ export async function listMyRecipes(ownerId: string): Promise<CustomRecipeRow[]>
     .order('created_at', { ascending: false })
   if (error) throw error
   return (data as CustomRecipeRow[]) ?? []
+}
+
+// Рецепты, которыми другие пользователи поделились публично — исключая
+// свои собственные (те уже показаны отдельно в «Моих»).
+export async function listCommunityRecipes(excludeOwnerId: string): Promise<PublicCustomRecipeRow[]> {
+  const client = requireClient()
+  const { data, error } = await client
+    .from('custom_recipes')
+    .select('*, owner:owner_id(username, display_name)')
+    .eq('is_public', true)
+    .neq('owner_id', excludeOwnerId)
+    .order('created_at', { ascending: false })
+    .limit(60)
+  if (error) throw error
+  return (data as unknown as PublicCustomRecipeRow[]) ?? []
 }
 
 export async function getMyRecipeById(id: string): Promise<CustomRecipeRow | null> {
@@ -54,6 +70,7 @@ export async function createCustomRecipe(input: NewCustomRecipeInput) {
       steps: input.steps,
       garnish: input.garnish.trim() || null,
       tip: input.tip.trim() || null,
+      is_public: input.isPublic,
     })
     .select()
     .single()
