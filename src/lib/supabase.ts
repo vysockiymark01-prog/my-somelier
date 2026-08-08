@@ -74,3 +74,21 @@ export interface CustomRecipeRow {
 export interface PublicCustomRecipeRow extends CustomRecipeRow {
   owner: Pick<Profile, 'username' | 'display_name'> | null
 }
+
+export interface PartyBillItemRow {
+  id: string
+  party_id: string
+  title: string
+  price: number
+  paid_by: string
+  created_by: string
+  created_at: string
+}
+
+export interface PartyBillShareRow {
+  id: string
+  item_id: string
+  party_id: string
+  user_id: string
+  created_at: string
+}

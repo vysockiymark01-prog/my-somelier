@@ -10,10 +10,17 @@ import {
   respondPartyInvite,
   unvoteForRecipe,
   voteForRecipe,
+  listBillItems,
+  createBillItem,
+  deleteBillItem,
+  listBillShares,
+  addBillShare,
+  removeBillShare,
   type FriendshipWithProfile,
   type PartyWithGuests,
 } from '../lib/social'
-import type { PartyMenuVoteRow } from '../lib/supabase'
+import type { PartyMenuVoteRow, PartyBillItemRow, PartyBillShareRow, Profile } from '../lib/supabase'
+import { computeBalances, settleUp } from '../lib/billSplit'
 import { RECIPES, getRecipeById } from '../data/recipes'
 
 function formatDate(iso: string) {
@@ -42,20 +49,29 @@ function PartyDetailInner() {
   const [friendships, setFriendships] = useState<FriendshipWithProfile[]>([])
   const [votes, setVotes] = useState<PartyMenuVoteRow[]>([])
   const [menuQuery, setMenuQuery] = useState('')
+  const [billItems, setBillItems] = useState<PartyBillItemRow[]>([])
+  const [billShares, setBillShares] = useState<PartyBillShareRow[]>([])
+  const [newItemTitle, setNewItemTitle] = useState('')
+  const [newItemPrice, setNewItemPrice] = useState('')
+  const [newItemPaidBy, setNewItemPaidBy] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   const load = async () => {
     if (!user || !id) return
     try {
-      const [parties, fr, partyVotes] = await Promise.all([
+      const [parties, fr, partyVotes, items, shares] = await Promise.all([
         listParties(user.id),
         listFriendships(user.id),
         listPartyVotes(id),
+        listBillItems(id),
+        listBillShares(id),
       ])
       setParty(parties.find((p) => p.id === id) ?? null)
       setFriendships(fr.filter((f) => f.status === 'accepted'))
       setVotes(partyVotes)
+      setBillItems(items)
+      setBillShares(shares)
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -110,6 +126,20 @@ function PartyDetailInner() {
     r.name.toLowerCase().includes(menuQuery.trim().toLowerCase())
   )
 
+  // Участники счёта — хост плюс все гости, независимо от статуса RSVP:
+  // до вечеринки бывает не совсем понятно, кто точно придёт, а траты
+  // уже могут вноситься заранее.
+  const participants: Profile[] = [
+    party.host,
+    ...party.guests.map((g) => g.guest).filter((p) => p.id !== party.host_id),
+  ]
+  const participantName = (userId: string) => {
+    const p = participants.find((p) => p.id === userId)
+    return p ? p.display_name ?? p.username : 'кто-то'
+  }
+  const balances = computeBalances(billItems, billShares)
+  const settlements = settleUp(balances)
+
   const handleInvite = async (guestId: string) => {
     try {
       await inviteToParty(party.id, guestId)
@@ -136,6 +166,53 @@ function PartyDetailInner() {
         await unvoteForRecipe(party.id, user.id, recipeId)
       } else {
         await voteForRecipe(party.id, user.id, recipeId)
+      }
+      await load()
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+
+  const handleAddBillItem = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!user) return
+    const price = parseFloat(newItemPrice.replace(',', '.'))
+    if (!newItemTitle.trim() || !Number.isFinite(price) || price < 0) {
+      setError('Укажите название и корректную цену')
+      return
+    }
+    try {
+      await createBillItem({
+        partyId: party.id,
+        title: newItemTitle,
+        price,
+        paidBy: newItemPaidBy || user.id,
+        createdBy: user.id,
+      })
+      setNewItemTitle('')
+      setNewItemPrice('')
+      await load()
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+
+  const handleDeleteBillItem = async (itemId: string) => {
+    try {
+      await deleteBillItem(itemId)
+      await load()
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+
+  const handleToggleShare = async (itemId: string, sharing: boolean) => {
+    if (!user) return
+    try {
+      if (sharing) {
+        await removeBillShare(itemId, user.id)
+      } else {
+        await addBillShare(itemId, party.id, user.id)
       }
       await load()
     } catch (e) {
@@ -253,6 +330,105 @@ function PartyDetailInner() {
               <p className="helper-text">Ничего не найдено</p>
             )}
           </div>
+        </div>
+      )}
+
+      {canVote && (
+        <div className="card">
+          <h2 style={{ fontSize: 15, margin: '0 0 4px' }}>💰 Общий счёт</h2>
+          <p className="helper-text" style={{ marginTop: 0, marginBottom: 12 }}>
+            Впишите, что почём покупали, отметьте, кто это брал — и внизу увидите, кому сколько
+            переводить.
+          </p>
+
+          <form onSubmit={handleAddBillItem} className="row" style={{ gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+            <input
+              className="text-input"
+              style={{ flex: 2, minWidth: 120 }}
+              placeholder="Что купили"
+              value={newItemTitle}
+              onChange={(e) => setNewItemTitle(e.target.value)}
+            />
+            <input
+              className="text-input"
+              style={{ flex: 1, minWidth: 90 }}
+              placeholder="Цена ₽"
+              inputMode="decimal"
+              value={newItemPrice}
+              onChange={(e) => setNewItemPrice(e.target.value)}
+            />
+            <select
+              className="text-input"
+              style={{ flex: 1, minWidth: 130 }}
+              value={newItemPaidBy || user?.id || ''}
+              onChange={(e) => setNewItemPaidBy(e.target.value)}
+            >
+              {participants.map((p) => (
+                <option key={p.id} value={p.id}>
+                  Платил: {p.display_name ?? p.username}
+                </option>
+              ))}
+            </select>
+            <button className="btn btn-gold" type="submit" style={{ flexShrink: 0 }}>
+              Добавить
+            </button>
+          </form>
+
+          {billItems.length === 0 ? (
+            <p className="helper-text">Пока ничего не добавили</p>
+          ) : (
+            <div style={{ marginBottom: 14 }}>
+              {billItems.map((item) => {
+                const itemShares = billShares.filter((s) => s.item_id === item.id)
+                const iShare = itemShares.some((s) => s.user_id === user?.id)
+                const canDelete = item.created_by === user?.id || isHost
+                return (
+                  <div key={item.id} className="list-row" style={{ alignItems: 'flex-start' }}>
+                    <div>
+                      <div>
+                        {item.title} — {item.price.toFixed(0)} ₽
+                      </div>
+                      <div className="helper-text" style={{ margin: 0 }}>
+                        Платил: {participantName(item.paid_by)}
+                        {itemShares.length > 0
+                          ? ` · берут: ${itemShares.map((s) => participantName(s.user_id)).join(', ')}`
+                          : ' · пока никто не отметил'}
+                      </div>
+                    </div>
+                    <div className="row" style={{ gap: 6 }}>
+                      <button
+                        className={'btn ' + (iShare ? 'btn-gold' : 'btn-outline')}
+                        onClick={() => handleToggleShare(item.id, iShare)}
+                      >
+                        {iShare ? '✓ Я брал(а)' : 'Я брал(а)'}
+                      </button>
+                      {canDelete && (
+                        <button className="icon-btn" onClick={() => handleDeleteBillItem(item.id)}>
+                          🗑
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {settlements.length > 0 && (
+            <div>
+              <h3 style={{ fontSize: 14, margin: '0 0 8px', color: 'var(--text-dim)' }}>
+                Кто кому переводит
+              </h3>
+              {settlements.map((s, i) => (
+                <div className="list-row" key={i}>
+                  <div>
+                    {participantName(s.fromUserId)} → {participantName(s.toUserId)}
+                  </div>
+                  <span className="tag">{s.amount.toFixed(0)} ₽</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

@@ -253,6 +253,112 @@ create policy "custom_recipes_delete_own"
   to authenticated
   using (auth.uid() = owner_id);
 
+-- Общий счёт вечеринки: позиции трат (что купили, почём, кто заплатил)
+-- и отметки участников «я тоже это брал(а)». Итоговые балансы и минимальный
+-- список переводов считаются на клиенте (src/lib/billSplit.ts) — в базе
+-- хранятся только сырые позиции и отметки участия.
+create table if not exists public.party_bill_items (
+  id uuid primary key default gen_random_uuid(),
+  party_id uuid not null references public.parties (id) on delete cascade,
+  title text not null,
+  price numeric(10,2) not null check (price >= 0),
+  paid_by uuid not null references public.profiles (id) on delete cascade,
+  created_by uuid not null references public.profiles (id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
+alter table public.party_bill_items enable row level security;
+
+create policy "bill_items_select"
+  on public.party_bill_items for select
+  to authenticated
+  using (
+    exists (
+      select 1 from public.parties p
+      where p.id = party_bill_items.party_id
+        and (
+          p.host_id = auth.uid()
+          or exists (select 1 from public.party_guests pg where pg.party_id = p.id and pg.guest_id = auth.uid())
+        )
+    )
+  );
+
+create policy "bill_items_insert"
+  on public.party_bill_items for insert
+  to authenticated
+  with check (
+    auth.uid() = created_by
+    and exists (
+      select 1 from public.parties p
+      where p.id = party_bill_items.party_id
+        and (
+          p.host_id = auth.uid()
+          or exists (select 1 from public.party_guests pg where pg.party_id = p.id and pg.guest_id = auth.uid())
+        )
+    )
+  );
+
+create policy "bill_items_update"
+  on public.party_bill_items for update
+  to authenticated
+  using (
+    auth.uid() = created_by
+    or exists (select 1 from public.parties p where p.id = party_bill_items.party_id and p.host_id = auth.uid())
+  );
+
+create policy "bill_items_delete"
+  on public.party_bill_items for delete
+  to authenticated
+  using (
+    auth.uid() = created_by
+    or exists (select 1 from public.parties p where p.id = party_bill_items.party_id and p.host_id = auth.uid())
+  );
+
+create table if not exists public.party_bill_shares (
+  id uuid primary key default gen_random_uuid(),
+  item_id uuid not null references public.party_bill_items (id) on delete cascade,
+  party_id uuid not null references public.parties (id) on delete cascade,
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (item_id, user_id)
+);
+
+alter table public.party_bill_shares enable row level security;
+
+create policy "bill_shares_select"
+  on public.party_bill_shares for select
+  to authenticated
+  using (
+    exists (
+      select 1 from public.parties p
+      where p.id = party_bill_shares.party_id
+        and (
+          p.host_id = auth.uid()
+          or exists (select 1 from public.party_guests pg where pg.party_id = p.id and pg.guest_id = auth.uid())
+        )
+    )
+  );
+
+create policy "bill_shares_insert"
+  on public.party_bill_shares for insert
+  to authenticated
+  with check (
+    auth.uid() = user_id
+    and exists (
+      select 1 from public.parties p
+      where p.id = party_bill_shares.party_id
+        and (
+          p.host_id = auth.uid()
+          or exists (select 1 from public.party_guests pg where pg.party_id = p.id and pg.guest_id = auth.uid())
+        )
+    )
+  );
+
+create policy "bill_shares_delete"
+  on public.party_bill_shares for delete
+  to authenticated
+  using (auth.uid() = user_id);
+
 -- Индексы для быстрого поиска
 create index if not exists idx_friendships_requester on public.friendships (requester_id);
 create index if not exists idx_friendships_addressee on public.friendships (addressee_id);
@@ -263,3 +369,6 @@ create index if not exists idx_party_menu_votes_party on public.party_menu_votes
 create index if not exists idx_party_menu_votes_voter on public.party_menu_votes (voter_id);
 create index if not exists idx_custom_recipes_owner on public.custom_recipes (owner_id);
 create index if not exists idx_custom_recipes_public on public.custom_recipes (is_public) where is_public = true;
+create index if not exists idx_party_bill_items_party on public.party_bill_items (party_id);
+create index if not exists idx_party_bill_shares_item on public.party_bill_shares (item_id);
+create index if not exists idx_party_bill_shares_party on public.party_bill_shares (party_id);

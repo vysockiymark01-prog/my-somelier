@@ -5,6 +5,8 @@ import {
   type PartyRow,
   type PartyGuestRow,
   type PartyMenuVoteRow,
+  type PartyBillItemRow,
+  type PartyBillShareRow,
 } from './supabase'
 
 export interface FriendshipWithProfile extends FriendshipRow {
@@ -153,5 +155,77 @@ export async function unvoteForRecipe(partyId: string, voterId: string, recipeId
     .eq('party_id', partyId)
     .eq('voter_id', voterId)
     .eq('recipe_id', recipeId)
+  if (error) throw error
+}
+
+// --- Общий счёт вечеринки: позиции трат + кто что заказывал ---
+
+export async function listBillItems(partyId: string): Promise<PartyBillItemRow[]> {
+  const client = requireClient()
+  const { data, error } = await client
+    .from('party_bill_items')
+    .select('*')
+    .eq('party_id', partyId)
+    .order('created_at', { ascending: true })
+  if (error) throw error
+  return (data as PartyBillItemRow[]) ?? []
+}
+
+export async function createBillItem(input: {
+  partyId: string
+  title: string
+  price: number
+  paidBy: string
+  createdBy: string
+}) {
+  const client = requireClient()
+  const { data, error } = await client
+    .from('party_bill_items')
+    .insert({
+      party_id: input.partyId,
+      title: input.title.trim(),
+      price: input.price,
+      paid_by: input.paidBy,
+      created_by: input.createdBy,
+    })
+    .select()
+    .single()
+  if (error) throw error
+  return data as PartyBillItemRow
+}
+
+export async function deleteBillItem(id: string) {
+  const client = requireClient()
+  const { error } = await client.from('party_bill_items').delete().eq('id', id)
+  if (error) throw error
+}
+
+export async function listBillShares(partyId: string): Promise<PartyBillShareRow[]> {
+  const client = requireClient()
+  const { data, error } = await client
+    .from('party_bill_shares')
+    .select('*')
+    .eq('party_id', partyId)
+  if (error) throw error
+  return (data as PartyBillShareRow[]) ?? []
+}
+
+export async function addBillShare(itemId: string, partyId: string, userId: string) {
+  const client = requireClient()
+  const { error } = await client.from('party_bill_shares').insert({
+    item_id: itemId,
+    party_id: partyId,
+    user_id: userId,
+  })
+  if (error) throw error
+}
+
+export async function removeBillShare(itemId: string, userId: string) {
+  const client = requireClient()
+  const { error } = await client
+    .from('party_bill_shares')
+    .delete()
+    .eq('item_id', itemId)
+    .eq('user_id', userId)
   if (error) throw error
 }
