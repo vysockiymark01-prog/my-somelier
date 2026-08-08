@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Мой сомелье</title>
+    <script>
+      // GitHub Pages не умеет отдавать index.html на прямые ссылки на
+      // подстраницы SPA (например /recipe/mojito при перезагрузке или
+      // переходе по ссылке). Этот классический трюк сохраняет путь в
+      // sessionStorage и редиректит на index.html, откуда роутер
+      // React Router восстанавливает нужный экран.
+      var basePath = '/my-somelier/';
+      var path = location.pathname.slice(basePath.length);
+      sessionStorage.setItem('spa-redirect', path + location.search + location.hash);
+      location.replace(basePath);
+    </script>
+  </head>
+  <body></body>
+</html>
