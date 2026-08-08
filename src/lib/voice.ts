@@ -85,6 +85,39 @@ export function pickBaristaVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesi
   return sorted[0] ?? null
 }
 
+const VOICE_PREF_KEY = 'my-somelier:voice-uri'
+
+export function loadPreferredVoiceURI(): string | null {
+  try {
+    return localStorage.getItem(VOICE_PREF_KEY)
+  } catch {
+    return null
+  }
+}
+
+export function savePreferredVoiceURI(voiceURI: string | null) {
+  try {
+    if (voiceURI) localStorage.setItem(VOICE_PREF_KEY, voiceURI)
+    else localStorage.removeItem(VOICE_PREF_KEY)
+  } catch {
+    // localStorage недоступен (приватный режим и т.п.) — просто не сохраняем
+  }
+}
+
+/**
+ * Список голосов для селектора в интерфейсе: сперва русские, затем все
+ * остальные по алфавиту — чтобы нужный голос было проще найти в длинном
+ * списке (Edge, например, отдаёт по 40+ голосов на все языки сразу).
+ */
+export function sortVoicesForPicker(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice[] {
+  return [...voices].sort((a, b) => {
+    const aRu = a.lang.toLowerCase().startsWith('ru') ? 0 : 1
+    const bRu = b.lang.toLowerCase().startsWith('ru') ? 0 : 1
+    if (aRu !== bRu) return aRu - bRu
+    return a.name.localeCompare(b.name)
+  })
+}
+
 export type VoiceDiagnosis =
   | { ok: true; voiceCount: number; pickedVoiceName: string }
   | { ok: false; reason: 'unsupported' | 'no-voices' }

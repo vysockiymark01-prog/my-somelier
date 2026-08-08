@@ -9,6 +9,10 @@ import {
   DEFAULT_VOICE_SETTINGS,
   diagnoseVoice,
   isSpeechSupported,
+  loadPreferredVoiceURI,
+  loadVoices,
+  savePreferredVoiceURI,
+  sortVoicesForPicker,
   type PlayerState,
   type VoiceDiagnosis,
 } from '../lib/voice'
@@ -79,6 +83,8 @@ export function RecipeDetailPage() {
   const [rate, setRate] = useState(DEFAULT_VOICE_SETTINGS.rate)
   const [pitch, setPitch] = useState(DEFAULT_VOICE_SETTINGS.pitch)
   const [diagnosis, setDiagnosis] = useState<VoiceDiagnosis | null>(null)
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([])
+  const [voiceURI, setVoiceURI] = useState<string | null>(() => loadPreferredVoiceURI())
 
   useEffect(() => {
     const unsub = baristaPlayer.subscribe(setPlayerState)
@@ -90,7 +96,14 @@ export function RecipeDetailPage() {
 
   useEffect(() => {
     diagnoseVoice().then(setDiagnosis)
+    loadVoices().then((v) => setVoices(sortVoicesForPicker(v)))
   }, [])
+
+  const handleVoiceChange = (uri: string) => {
+    const value = uri || null
+    setVoiceURI(value)
+    savePreferredVoiceURI(value)
+  }
 
   if (recipe === undefined) {
     return (
@@ -119,7 +132,7 @@ export function RecipeDetailPage() {
     } else if (playerState.status === 'paused') {
       baristaPlayer.resume()
     } else {
-      baristaPlayer.play(recipe.steps, { rate, pitch })
+      baristaPlayer.play(recipe.steps, { rate, pitch, voiceURI })
     }
   }
 
@@ -234,11 +247,35 @@ export function RecipeDetailPage() {
             />
           </div>
 
+          {voices.length > 0 && (
+            <div className="form-field" style={{ marginTop: 10 }}>
+              <label>Голос бариста</label>
+              <select
+                className="text-input"
+                value={voiceURI ?? ''}
+                onChange={(e) => handleVoiceChange(e.target.value)}
+              >
+                <option value="">Автоматически (подобрать самим)</option>
+                {voices.map((v) => (
+                  <option key={v.voiceURI} value={v.voiceURI}>
+                    {v.name} ({v.lang})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <button
             type="button"
             className="btn btn-outline btn-block"
             style={{ marginTop: 10 }}
-            onClick={() => baristaPlayer.play(['Проверка звука. Если слышите это — всё работает.'], { rate, pitch })}
+            onClick={() =>
+              baristaPlayer.play(['Проверка звука. Если слышите это — всё работает.'], {
+                rate,
+                pitch,
+                voiceURI,
+              })
+            }
           >
             🔊 Проверить звук
           </button>
