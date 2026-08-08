@@ -4,6 +4,7 @@ import { TopBar } from './components/TopBar'
 import { BottomNav } from './components/BottomNav'
 import { CatalogPage } from './pages/CatalogPage'
 import { RecipeDetailPage } from './pages/RecipeDetailPage'
+import { RandomizerPage } from './pages/RandomizerPage'
 import { AuthPage } from './pages/AuthPage'
 import { ProfileSetupPage } from './pages/ProfileSetupPage'
 import { ProfilePage } from './pages/ProfilePage'
@@ -45,6 +46,7 @@ function App() {
         <Routes>
           <Route path="/" element={<CatalogPage />} />
           <Route path="/recipe/:id" element={<RecipeDetailPage />} />
+          <Route path="/random" element={<RandomizerPage />} />
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/setup-profile" element={<ProfileSetupPage />} />
           <Route path="/friends" element={<FriendsPage />} />

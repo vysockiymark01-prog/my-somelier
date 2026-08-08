@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { CATEGORIES, RECIPES, type Category } from '../data/recipes'
 import { RecipeCard } from '../components/RecipeCard'
 
 export function CatalogPage() {
+  const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState<Category | 'Всё'>('Всё')
 
@@ -19,6 +21,14 @@ export function CatalogPage() {
     <div className="page">
       <h1 className="page-title">Рецепты</h1>
       <p className="page-subtitle">Смешивайте и слушайте голос бариста</p>
+
+      <button
+        className="btn btn-gold btn-block"
+        style={{ marginBottom: 14 }}
+        onClick={() => navigate('/random')}
+      >
+        🎲 Не знаю, что выбрать — придумай напиток
+      </button>
 
       <input
         className="search-input"
