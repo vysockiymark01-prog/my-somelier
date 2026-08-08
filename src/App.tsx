@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom'
 import { TopBar } from './components/TopBar'
 import { BottomNav } from './components/BottomNav'
 import { CatalogPage } from './pages/CatalogPage'
@@ -13,6 +13,23 @@ import { NewPartyPage } from './pages/NewPartyPage'
 import { PartyDetailPage } from './pages/PartyDetailPage'
 import { useAuth } from './store/auth'
 
+// Восстанавливает путь, сохранённый public/404.html при прямом переходе
+// по ссылке на подстраницу (GitHub Pages не умеет отдавать index.html
+// на такие запросы сам, поэтому подстраховываемся через sessionStorage).
+function SpaRedirectHandler() {
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    const redirect = sessionStorage.getItem('spa-redirect')
+    if (redirect) {
+      sessionStorage.removeItem('spa-redirect')
+      navigate('/' + redirect, { replace: true })
+    }
+  }, [navigate])
+
+  return null
+}
+
 function App() {
   const init = useAuth((s) => s.init)
 
@@ -22,6 +39,7 @@ function App() {
 
   return (
     <BrowserRouter basename={import.meta.env.BASE_URL}>
+      <SpaRedirectHandler />
       <div className="app-shell">
         <TopBar />
         <Routes>
