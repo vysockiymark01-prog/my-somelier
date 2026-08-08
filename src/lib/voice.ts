@@ -1,0 +1,157 @@
+// Модуль «голос бариста»: озвучивает шаги рецепта через браузерный
+// Web Speech API (SpeechSynthesis), стараясь выбрать самый низкий/мужской
+// голос из доступных в браузере пользователя, и слегка понижает pitch,
+// чтобы звучание было ближе к мягкому баритону.
+
+export interface VoiceSettings {
+  rate: number // 0.6 - 1.3, по умолчанию чуть медленнее обычного
+  pitch: number // 0 - 2, по умолчанию понижен для баритона
+  voiceURI: string | null
+}
+
+export const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
+  rate: 0.92,
+  pitch: 0.75,
+  voiceURI: null,
+}
+
+const RU_MALE_HINTS = ['ru', 'russian', 'yuri', 'dmitri', 'pavel', 'maxim', 'ivan']
+const MALE_HINTS = ['male', 'man', 'daniel', 'google русский', 'yandex']
+
+export function isSpeechSupported(): boolean {
+  return typeof window !== 'undefined' && 'speechSynthesis' in window
+}
+
+export function getVoices(): SpeechSynthesisVoice[] {
+  if (!isSpeechSupported()) return []
+  return window.speechSynthesis.getVoices()
+}
+
+/**
+ * Загружает список голосов, дожидаясь события voiceschanged
+ * (в некоторых браузерах голоса подгружаются асинхронно).
+ */
+export function loadVoices(): Promise<SpeechSynthesisVoice[]> {
+  return new Promise((resolve) => {
+    if (!isSpeechSupported()) {
+      resolve([])
+      return
+    }
+    const existing = window.speechSynthesis.getVoices()
+    if (existing.length > 0) {
+      resolve(existing)
+      return
+    }
+    const handler = () => {
+      window.speechSynthesis.removeEventListener('voiceschanged', handler)
+      resolve(window.speechSynthesis.getVoices())
+    }
+    window.speechSynthesis.addEventListener('voiceschanged', handler)
+    // fallback на случай, если событие не сработает
+    setTimeout(() => resolve(window.speechSynthesis.getVoices()), 1200)
+  })
+}
+
+/**
+ * Пытается найти "лучший" голос бариста: русский мужской, иначе
+ * любой мужской, иначе первый русский, иначе первый доступный.
+ */
+export function pickBaristaVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
+  if (voices.length === 0) return null
+
+  const score = (v: SpeechSynthesisVoice) => {
+    const name = v.name.toLowerCase()
+    const lang = v.lang.toLowerCase()
+    let s = 0
+    if (lang.startsWith('ru')) s += 10
+    if (RU_MALE_HINTS.some((h) => name.includes(h))) s += 5
+    if (MALE_HINTS.some((h) => name.includes(h))) s += 4
+    if (name.includes('female') || name.includes('woman')) s -= 6
+    return s
+  }
+
+  const sorted = [...voices].sort((a, b) => score(b) - score(a))
+  return sorted[0] ?? null
+}
+
+class BaristaPlayer {
+  private utterances: SpeechSynthesisUtterance[] = []
+  private listeners: Set<(state: PlayerState) => void> = new Set()
+  private settings: VoiceSettings = DEFAULT_VOICE_SETTINGS
+
+  state: PlayerState = { status: 'idle', stepIndex: -1 }
+
+  subscribe(fn: (state: PlayerState) => void) {
+    this.listeners.add(fn)
+    return () => this.listeners.delete(fn)
+  }
+
+  private emit() {
+    this.listeners.forEach((fn) => fn(this.state))
+  }
+
+  private setState(patch: Partial<PlayerState>) {
+    this.state = { ...this.state, ...patch }
+    this.emit()
+  }
+
+  updateSettings(settings: Partial<VoiceSettings>) {
+    this.settings = { ...this.settings, ...settings }
+  }
+
+  play(steps: string[], settings?: Partial<VoiceSettings>) {
+    if (!isSpeechSupported()) return
+    this.stop()
+    if (settings) this.updateSettings(settings)
+
+    const voices = getVoices()
+    const voice =
+      (this.settings.voiceURI && voices.find((v) => v.voiceURI === this.settings.voiceURI)) ||
+      pickBaristaVoice(voices)
+
+    this.utterances = steps.map((text, i) => {
+      const u = new SpeechSynthesisUtterance(text)
+      u.rate = this.settings.rate
+      u.pitch = this.settings.pitch
+      u.lang = voice?.lang || 'ru-RU'
+      if (voice) u.voice = voice
+      u.onstart = () => this.setState({ status: 'playing', stepIndex: i })
+      u.onend = () => {
+        if (i === steps.length - 1) {
+          this.setState({ status: 'idle', stepIndex: -1 })
+        }
+      }
+      u.onerror = () => this.setState({ status: 'idle', stepIndex: -1 })
+      return u
+    })
+
+    this.setState({ status: 'playing', stepIndex: 0 })
+    this.utterances.forEach((u) => window.speechSynthesis.speak(u))
+  }
+
+  pause() {
+    if (!isSpeechSupported()) return
+    window.speechSynthesis.pause()
+    this.setState({ status: 'paused' })
+  }
+
+  resume() {
+    if (!isSpeechSupported()) return
+    window.speechSynthesis.resume()
+    this.setState({ status: 'playing' })
+  }
+
+  stop() {
+    if (!isSpeechSupported()) return
+    window.speechSynthesis.cancel()
+    this.utterances = []
+    this.setState({ status: 'idle', stepIndex: -1 })
+  }
+}
+
+export interface PlayerState {
+  status: 'idle' | 'playing' | 'paused'
+  stepIndex: number
+}
+
+export const baristaPlayer = new BaristaPlayer()
