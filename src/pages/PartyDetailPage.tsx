@@ -6,10 +6,15 @@ import {
   inviteToParty,
   listFriendships,
   listParties,
+  listPartyVotes,
   respondPartyInvite,
+  unvoteForRecipe,
+  voteForRecipe,
   type FriendshipWithProfile,
   type PartyWithGuests,
 } from '../lib/social'
+import type { PartyMenuVoteRow } from '../lib/supabase'
+import { RECIPES, getRecipeById } from '../data/recipes'
 
 function formatDate(iso: string) {
   const d = new Date(iso)
@@ -35,18 +40,22 @@ function PartyDetailInner() {
   const navigate = useNavigate()
   const [party, setParty] = useState<PartyWithGuests | null>(null)
   const [friendships, setFriendships] = useState<FriendshipWithProfile[]>([])
+  const [votes, setVotes] = useState<PartyMenuVoteRow[]>([])
+  const [menuQuery, setMenuQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   const load = async () => {
     if (!user || !id) return
     try {
-      const [parties, fr] = await Promise.all([
+      const [parties, fr, partyVotes] = await Promise.all([
         listParties(user.id),
         listFriendships(user.id),
+        listPartyVotes(id),
       ])
       setParty(parties.find((p) => p.id === id) ?? null)
       setFriendships(fr.filter((f) => f.status === 'accepted'))
+      setVotes(partyVotes)
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -85,6 +94,22 @@ function PartyDetailInner() {
     .map((f) => (f.requester_id === user?.id ? f.addressee : f.requester))
     .filter((p) => !invitedIds.has(p.id))
 
+  // Может голосовать хост или любой приглашённый гость (независимо от RSVP).
+  const canVote = isHost || Boolean(myRsvp)
+  const myVotedRecipeIds = new Set(
+    votes.filter((v) => v.voter_id === user?.id).map((v) => v.recipe_id)
+  )
+  const voteCounts = new Map<string, number>()
+  votes.forEach((v) => voteCounts.set(v.recipe_id, (voteCounts.get(v.recipe_id) ?? 0) + 1))
+  const topPicks = [...voteCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([recipeId, count]) => ({ recipe: getRecipeById(recipeId), count }))
+    .filter((x) => x.recipe)
+
+  const filteredCatalog = RECIPES.filter((r) =>
+    r.name.toLowerCase().includes(menuQuery.trim().toLowerCase())
+  )
+
   const handleInvite = async (guestId: string) => {
     try {
       await inviteToParty(party.id, guestId)
@@ -98,6 +123,20 @@ function PartyDetailInner() {
     if (!myRsvp) return
     try {
       await respondPartyInvite(myRsvp.id, status)
+      await load()
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+
+  const handleToggleVote = async (recipeId: string) => {
+    if (!user) return
+    try {
+      if (myVotedRecipeIds.has(recipeId)) {
+        await unvoteForRecipe(party.id, user.id, recipeId)
+      } else {
+        await voteForRecipe(party.id, user.id, recipeId)
+      }
       await load()
     } catch (e) {
       setError((e as Error).message)
@@ -147,6 +186,72 @@ function PartyDetailInner() {
             >
               Не иду
             </button>
+          </div>
+        </div>
+      )}
+
+      {canVote && (
+        <div className="card">
+          <h2 style={{ fontSize: 15, margin: '0 0 4px' }}>🍹 Меню: что хотят гости</h2>
+          <p className="helper-text" style={{ marginTop: 0 }}>
+            Отметьте напитки, которые хотели бы попробовать на вечеринке — хост увидит,
+            что пользуется популярностью.
+          </p>
+
+          {topPicks.length > 0 && (
+            <div style={{ marginBottom: 14 }}>
+              <div className="helper-text" style={{ marginBottom: 6 }}>
+                Популярное среди гостей:
+              </div>
+              {topPicks.slice(0, 5).map(({ recipe, count }) => (
+                <div className="list-row" key={recipe!.id}>
+                  <div className="row">
+                    <span style={{ fontSize: 20 }}>{recipe!.emoji}</span>
+                    <div>{recipe!.name}</div>
+                  </div>
+                  <span className="badge badge-success">
+                    {count} {count === 1 ? 'голос' : count < 5 ? 'голоса' : 'голосов'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <input
+            className="search-input"
+            placeholder="Найти напиток…"
+            value={menuQuery}
+            onChange={(e) => setMenuQuery(e.target.value)}
+          />
+
+          <div style={{ maxHeight: 320, overflowY: 'auto', marginTop: 8 }}>
+            {filteredCatalog.map((r) => {
+              const voted = myVotedRecipeIds.has(r.id)
+              const count = voteCounts.get(r.id) ?? 0
+              return (
+                <div className="list-row" key={r.id}>
+                  <div className="row">
+                    <span style={{ fontSize: 20 }}>{r.emoji}</span>
+                    <div>
+                      <div>{r.name}</div>
+                      <div className="helper-text" style={{ margin: 0 }}>
+                        {r.glass}
+                        {count > 0 ? ` · ${count} ${count === 1 ? 'голос' : 'голосов'}` : ''}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    className={'btn ' + (voted ? 'btn-gold' : 'btn-outline')}
+                    onClick={() => handleToggleVote(r.id)}
+                  >
+                    {voted ? '✓ Хочу' : 'Хочу'}
+                  </button>
+                </div>
+              )
+            })}
+            {filteredCatalog.length === 0 && (
+              <p className="helper-text">Ничего не найдено</p>
+            )}
           </div>
         </div>
       )}

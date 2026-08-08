@@ -155,9 +155,66 @@ create policy "Хост может удалить приглашение"
     )
   );
 
+-- Голоса за напитки из каталога рецептов для конкретной вечеринки.
+-- recipe_id — это строковый id из локального каталога src/data/recipes.ts
+-- (mojito, margarita, ...), а не отдельная таблица в базе — каталог
+-- статический и хранится прямо в коде приложения.
+create table if not exists public.party_menu_votes (
+  id uuid primary key default gen_random_uuid(),
+  party_id uuid not null references public.parties (id) on delete cascade,
+  voter_id uuid not null references public.profiles (id) on delete cascade,
+  recipe_id text not null,
+  created_at timestamptz not null default now(),
+  unique (party_id, voter_id, recipe_id)
+);
+
+alter table public.party_menu_votes enable row level security;
+
+create policy "Голоса видят хост и приглашённые"
+  on public.party_menu_votes for select
+  to authenticated
+  using (
+    exists (
+      select 1 from public.parties p
+      where p.id = party_menu_votes.party_id
+        and (
+          p.host_id = auth.uid()
+          or exists (
+            select 1 from public.party_guests pg
+            where pg.party_id = p.id and pg.guest_id = auth.uid()
+          )
+        )
+    )
+  );
+
+create policy "Голосовать может хост или приглашённый гость"
+  on public.party_menu_votes for insert
+  to authenticated
+  with check (
+    auth.uid() = voter_id
+    and exists (
+      select 1 from public.parties p
+      where p.id = party_menu_votes.party_id
+        and (
+          p.host_id = auth.uid()
+          or exists (
+            select 1 from public.party_guests pg
+            where pg.party_id = p.id and pg.guest_id = auth.uid()
+          )
+        )
+    )
+  );
+
+create policy "Можно убрать только свой голос"
+  on public.party_menu_votes for delete
+  to authenticated
+  using (auth.uid() = voter_id);
+
 -- Индексы для быстрого поиска
 create index if not exists idx_friendships_requester on public.friendships (requester_id);
 create index if not exists idx_friendships_addressee on public.friendships (addressee_id);
 create index if not exists idx_party_guests_party on public.party_guests (party_id);
 create index if not exists idx_party_guests_guest on public.party_guests (guest_id);
 create index if not exists idx_parties_host on public.parties (host_id);
+create index if not exists idx_party_menu_votes_party on public.party_menu_votes (party_id);
+create index if not exists idx_party_menu_votes_voter on public.party_menu_votes (voter_id);

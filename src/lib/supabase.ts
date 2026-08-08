@@ -45,3 +45,11 @@ export interface PartyGuestRow {
   status: 'invited' | 'going' | 'maybe' | 'declined'
   created_at: string
 }
+
+export interface PartyMenuVoteRow {
+  id: string
+  party_id: string
+  voter_id: string
+  recipe_id: string
+  created_at: string
+}

@@ -1,4 +1,11 @@
-import { supabase, type Profile, type FriendshipRow, type PartyRow, type PartyGuestRow } from './supabase'
+import {
+  supabase,
+  type Profile,
+  type FriendshipRow,
+  type PartyRow,
+  type PartyGuestRow,
+  type PartyMenuVoteRow,
+} from './supabase'
 
 export interface FriendshipWithProfile extends FriendshipRow {
   requester: Profile
@@ -115,5 +122,36 @@ export async function respondPartyInvite(
 ) {
   const client = requireClient()
   const { error } = await client.from('party_guests').update({ status }).eq('id', id)
+  if (error) throw error
+}
+
+export async function listPartyVotes(partyId: string): Promise<PartyMenuVoteRow[]> {
+  const client = requireClient()
+  const { data, error } = await client
+    .from('party_menu_votes')
+    .select('*')
+    .eq('party_id', partyId)
+  if (error) throw error
+  return (data as PartyMenuVoteRow[]) ?? []
+}
+
+export async function voteForRecipe(partyId: string, voterId: string, recipeId: string) {
+  const client = requireClient()
+  const { error } = await client.from('party_menu_votes').insert({
+    party_id: partyId,
+    voter_id: voterId,
+    recipe_id: recipeId,
+  })
+  if (error) throw error
+}
+
+export async function unvoteForRecipe(partyId: string, voterId: string, recipeId: string) {
+  const client = requireClient()
+  const { error } = await client
+    .from('party_menu_votes')
+    .delete()
+    .eq('party_id', partyId)
+    .eq('voter_id', voterId)
+    .eq('recipe_id', recipeId)
   if (error) throw error
 }
