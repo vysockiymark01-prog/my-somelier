@@ -7,8 +7,10 @@ import { useAuth } from '../store/auth'
 import {
   baristaPlayer,
   DEFAULT_VOICE_SETTINGS,
+  diagnoseVoice,
   isSpeechSupported,
   type PlayerState,
+  type VoiceDiagnosis,
 } from '../lib/voice'
 
 interface DisplayRecipe {
@@ -76,6 +78,7 @@ export function RecipeDetailPage() {
   const [playerState, setPlayerState] = useState<PlayerState>(baristaPlayer.state)
   const [rate, setRate] = useState(DEFAULT_VOICE_SETTINGS.rate)
   const [pitch, setPitch] = useState(DEFAULT_VOICE_SETTINGS.pitch)
+  const [diagnosis, setDiagnosis] = useState<VoiceDiagnosis | null>(null)
 
   useEffect(() => {
     const unsub = baristaPlayer.subscribe(setPlayerState)
@@ -83,6 +86,10 @@ export function RecipeDetailPage() {
       unsub()
       baristaPlayer.stop()
     }
+  }, [])
+
+  useEffect(() => {
+    diagnoseVoice().then(setDiagnosis)
   }, [])
 
   if (recipe === undefined) {
@@ -226,6 +233,28 @@ export function RecipeDetailPage() {
               onChange={(e) => setPitch(parseFloat(e.target.value))}
             />
           </div>
+
+          <button
+            type="button"
+            className="btn btn-outline btn-block"
+            style={{ marginTop: 10 }}
+            onClick={() => baristaPlayer.play(['Проверка звука. Если слышите это — всё работает.'], { rate, pitch })}
+          >
+            🔊 Проверить звук
+          </button>
+
+          {diagnosis && !diagnosis.ok && (
+            <p className="helper-text" style={{ color: 'var(--danger)', marginTop: 8 }}>
+              {diagnosis.reason === 'no-voices'
+                ? 'В этом браузере не нашлось ни одного голоса для озвучки. Часто это Yandex Browser или мобильный браузер без установленного движка синтеза речи — попробуйте открыть сайт в Google Chrome, там голоса встроены.'
+                : 'Этот браузер вообще не поддерживает озвучку речи (Web Speech API).'}
+            </p>
+          )}
+          {diagnosis && diagnosis.ok && (
+            <p className="helper-text" style={{ marginTop: 8 }}>
+              Голос: {diagnosis.pickedVoiceName} · доступно голосов: {diagnosis.voiceCount}
+            </p>
+          )}
         </div>
       ) : (
         <p className="helper-text">Ваш браузер не поддерживает озвучку рецептов.</p>
