@@ -4,6 +4,8 @@ import { AuthGate } from '../components/AuthGate'
 import { useAuth } from '../store/auth'
 import { createParty } from '../lib/social'
 
+const CURRENCIES = ['₽', '$', '€', '₴', '₸', '£']
+
 function NewPartyInner() {
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -11,6 +13,7 @@ function NewPartyInner() {
   const [description, setDescription] = useState('')
   const [location, setLocation] = useState('')
   const [startsAt, setStartsAt] = useState('')
+  const [currency, setCurrency] = useState('₽')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -30,6 +33,7 @@ function NewPartyInner() {
         description,
         location,
         startsAt: new Date(startsAt).toISOString(),
+        currency,
       })
       navigate(`/parties/${party.id}`)
     } catch (err) {
@@ -84,6 +88,20 @@ function NewPartyInner() {
             value={startsAt}
             onChange={(e) => setStartsAt(e.target.value)}
           />
+        </div>
+        <div className="form-field">
+          <label>Валюта для общего счёта</label>
+          <select
+            className="text-input"
+            value={currency}
+            onChange={(e) => setCurrency(e.target.value)}
+          >
+            {CURRENCIES.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
         </div>
         {error && <p className="error-text">{error}</p>}
         <button className="btn btn-gold btn-block" type="submit" disabled={saving}>

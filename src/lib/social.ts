@@ -7,6 +7,7 @@ import {
   type PartyMenuVoteRow,
   type PartyBillItemRow,
   type PartyBillShareRow,
+  type PartyMessageRow,
 } from './supabase'
 
 export interface FriendshipWithProfile extends FriendshipRow {
@@ -76,6 +77,7 @@ export async function createParty(input: {
   description: string
   location: string
   startsAt: string
+  currency?: string
 }) {
   const client = requireClient()
   const { data, error } = await client
@@ -86,6 +88,7 @@ export async function createParty(input: {
       description: input.description || null,
       location: input.location || null,
       starts_at: input.startsAt,
+      currency: input.currency || '₽',
     })
     .select()
     .single()
@@ -124,6 +127,12 @@ export async function respondPartyInvite(
 ) {
   const client = requireClient()
   const { error } = await client.from('party_guests').update({ status }).eq('id', id)
+  if (error) throw error
+}
+
+export async function removeGuestFromParty(guestRowId: string) {
+  const client = requireClient()
+  const { error } = await client.from('party_guests').delete().eq('id', guestRowId)
   if (error) throw error
 }
 
@@ -228,4 +237,53 @@ export async function removeBillShare(itemId: string, userId: string) {
     .eq('item_id', itemId)
     .eq('user_id', userId)
   if (error) throw error
+}
+
+// --- Групповой чат вечеринки ---
+
+export async function listMessages(partyId: string): Promise<PartyMessageRow[]> {
+  const client = requireClient()
+  const { data, error } = await client
+    .from('party_messages')
+    .select('*')
+    .eq('party_id', partyId)
+    .order('created_at', { ascending: true })
+  if (error) throw error
+  return (data as PartyMessageRow[]) ?? []
+}
+
+export async function sendMessage(partyId: string, senderId: string, body: string) {
+  const client = requireClient()
+  const trimmed = body.trim()
+  if (!trimmed) return
+  const { error } = await client.from('party_messages').insert({
+    party_id: partyId,
+    sender_id: senderId,
+    body: trimmed,
+  })
+  if (error) throw error
+}
+
+export async function deleteMessage(id: string) {
+  const client = requireClient()
+  const { error } = await client.from('party_messages').delete().eq('id', id)
+  if (error) throw error
+}
+
+export function subscribeToMessages(
+  partyId: string,
+  onInsert: (row: PartyMessageRow) => void
+) {
+  const client = requireClient()
+  const channel = client
+    .channel(`party_messages:${partyId}`)
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'party_messages', filter: `party_id=eq.${partyId}` },
+      (payload) => onInsert(payload.new as PartyMessageRow)
+    )
+    .subscribe()
+  return () => {
+    client.removeChannel(channel)
+  }
 }

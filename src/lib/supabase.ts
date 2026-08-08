@@ -35,6 +35,7 @@ export interface PartyRow {
   description: string | null
   location: string | null
   starts_at: string
+  currency: string
   created_at: string
 }
 
@@ -90,5 +91,21 @@ export interface PartyBillShareRow {
   item_id: string
   party_id: string
   user_id: string
+  created_at: string
+}
+
+export interface PartyMessageRow {
+  id: string
+  party_id: string
+  sender_id: string
+  body: string
+  created_at: string
+}
+
+export interface CustomRecipeReportRow {
+  id: string
+  recipe_id: string
+  reporter_id: string
+  reason: string | null
   created_at: string
 }

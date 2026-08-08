@@ -14,17 +14,22 @@ create table if not exists public.profiles (
 
 alter table public.profiles enable row level security;
 
-create policy "Профили видны всем авторизованным"
+-- Примечание: имена политик ниже соответствуют реально работающим в базе
+-- (проверено запросом к pg_policies) — раньше здесь были другие,
+-- кириллические названия, которые разошлись с реальностью после ручных
+-- правок через Dashboard. Если создаёте базу с нуля — эти create policy
+-- отработают и создадут политики с этими именами.
+create policy "profiles_select_all"
   on public.profiles for select
   to authenticated
   using (true);
 
-create policy "Можно создать только свой профиль"
+create policy "profiles_insert_own"
   on public.profiles for insert
   to authenticated
   with check (auth.uid() = id);
 
-create policy "Можно редактировать только свой профиль"
+create policy "profiles_update_own"
   on public.profiles for update
   to authenticated
   using (auth.uid() = id);
@@ -42,22 +47,22 @@ create table if not exists public.friendships (
 
 alter table public.friendships enable row level security;
 
-create policy "Видны только свои заявки в друзья"
+create policy "friendships_select"
   on public.friendships for select
   to authenticated
   using (auth.uid() = requester_id or auth.uid() = addressee_id);
 
-create policy "Можно отправить заявку от своего имени"
+create policy "friendships_insert"
   on public.friendships for insert
   to authenticated
   with check (auth.uid() = requester_id);
 
-create policy "Можно ответить на заявку или отменить свою"
+create policy "friendships_update"
   on public.friendships for update
   to authenticated
   using (auth.uid() = requester_id or auth.uid() = addressee_id);
 
-create policy "Можно удалить свою заявку/дружбу"
+create policy "friendships_delete"
   on public.friendships for delete
   to authenticated
   using (auth.uid() = requester_id or auth.uid() = addressee_id);
@@ -70,12 +75,13 @@ create table if not exists public.parties (
   description text,
   location text,
   starts_at timestamptz not null,
+  currency text not null default '₽',
   created_at timestamptz not null default now()
 );
 
 alter table public.parties enable row level security;
 
-create policy "Вечеринка видна хосту и приглашённым"
+create policy "parties_select"
   on public.parties for select
   to authenticated
   using (
@@ -86,17 +92,17 @@ create policy "Вечеринка видна хосту и приглашённ�
     )
   );
 
-create policy "Создать вечеринку может любой авторизованный"
+create policy "parties_insert"
   on public.parties for insert
   to authenticated
   with check (auth.uid() = host_id);
 
-create policy "Редактировать/удалять может только хост"
+create policy "parties_update"
   on public.parties for update
   to authenticated
   using (auth.uid() = host_id);
 
-create policy "Удалить может только хост"
+create policy "parties_delete"
   on public.parties for delete
   to authenticated
   using (auth.uid() = host_id);
@@ -113,7 +119,7 @@ create table if not exists public.party_guests (
 
 alter table public.party_guests enable row level security;
 
-create policy "Видят хост вечеринки и сам гость"
+create policy "party_guests_select"
   on public.party_guests for select
   to authenticated
   using (
@@ -124,7 +130,7 @@ create policy "Видят хост вечеринки и сам гость"
     )
   );
 
-create policy "Приглашать может только хост вечеринки"
+create policy "party_guests_insert"
   on public.party_guests for insert
   to authenticated
   with check (
@@ -134,7 +140,7 @@ create policy "Приглашать может только хост вечер�
     )
   );
 
-create policy "Гость может изменить свой RSVP, хост — статус приглашения"
+create policy "party_guests_update"
   on public.party_guests for update
   to authenticated
   using (
@@ -145,7 +151,9 @@ create policy "Гость может изменить свой RSVP, хост �
     )
   );
 
-create policy "Хост может удалить приглашение"
+-- Хост может удалить приглашение (используется и для «выгнать гостя»
+-- с уже подтверждённым статусом going/maybe).
+create policy "party_guests_delete"
   on public.party_guests for delete
   to authenticated
   using (
@@ -170,7 +178,7 @@ create table if not exists public.party_menu_votes (
 
 alter table public.party_menu_votes enable row level security;
 
-create policy "Голоса видят хост и приглашённые"
+create policy "votes_select"
   on public.party_menu_votes for select
   to authenticated
   using (
@@ -187,7 +195,7 @@ create policy "Голоса видят хост и приглашённые"
     )
   );
 
-create policy "Голосовать может хост или приглашённый гость"
+create policy "votes_insert"
   on public.party_menu_votes for insert
   to authenticated
   with check (
@@ -205,7 +213,7 @@ create policy "Голосовать может хост или приглашё�
     )
   );
 
-create policy "Можно убрать только свой голос"
+create policy "votes_delete"
   on public.party_menu_votes for delete
   to authenticated
   using (auth.uid() = voter_id);
@@ -359,6 +367,115 @@ create policy "bill_shares_delete"
   to authenticated
   using (auth.uid() = user_id);
 
+-- Жалобы на рецепты сообщества. При накоплении 3+ уникальных жалоб
+-- на рецепт триггер автоматически прячет его (is_public = false).
+create table if not exists public.custom_recipe_reports (
+  id uuid primary key default gen_random_uuid(),
+  recipe_id uuid not null references public.custom_recipes (id) on delete cascade,
+  reporter_id uuid not null references public.profiles (id) on delete cascade,
+  reason text,
+  created_at timestamptz not null default now(),
+  unique (recipe_id, reporter_id)
+);
+
+alter table public.custom_recipe_reports enable row level security;
+
+create policy "recipe_reports_select_own"
+  on public.custom_recipe_reports for select
+  to authenticated
+  using (auth.uid() = reporter_id);
+
+create policy "recipe_reports_insert"
+  on public.custom_recipe_reports for insert
+  to authenticated
+  with check (
+    auth.uid() = reporter_id
+    and exists (
+      select 1 from public.custom_recipes cr
+      where cr.id = custom_recipe_reports.recipe_id and cr.owner_id <> auth.uid()
+    )
+  );
+
+-- SECURITY DEFINER: должна суметь снять is_public даже если у жалующегося
+-- пользователя нет права update на чужой рецепт (его и не должно быть).
+create or replace function public.handle_recipe_report()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if (select count(*) from public.custom_recipe_reports where recipe_id = new.recipe_id) >= 3 then
+    update public.custom_recipes set is_public = false where id = new.recipe_id;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_recipe_report_moderation on public.custom_recipe_reports;
+create trigger trg_recipe_report_moderation
+  after insert on public.custom_recipe_reports
+  for each row
+  execute function public.handle_recipe_report();
+
+-- Сообщения группового чата вечеринки.
+create table if not exists public.party_messages (
+  id uuid primary key default gen_random_uuid(),
+  party_id uuid not null references public.parties (id) on delete cascade,
+  sender_id uuid not null references public.profiles (id) on delete cascade,
+  body text not null check (char_length(body) between 1 and 2000),
+  created_at timestamptz not null default now()
+);
+
+alter table public.party_messages enable row level security;
+
+create policy "messages_select"
+  on public.party_messages for select
+  to authenticated
+  using (
+    exists (
+      select 1 from public.parties p
+      where p.id = party_messages.party_id
+        and (
+          p.host_id = auth.uid()
+          or exists (select 1 from public.party_guests pg where pg.party_id = p.id and pg.guest_id = auth.uid())
+        )
+    )
+  );
+
+create policy "messages_insert"
+  on public.party_messages for insert
+  to authenticated
+  with check (
+    auth.uid() = sender_id
+    and exists (
+      select 1 from public.parties p
+      where p.id = party_messages.party_id
+        and (
+          p.host_id = auth.uid()
+          or exists (select 1 from public.party_guests pg where pg.party_id = p.id and pg.guest_id = auth.uid())
+        )
+    )
+  );
+
+create policy "messages_delete_own"
+  on public.party_messages for delete
+  to authenticated
+  using (auth.uid() = sender_id);
+
+-- Включаем Realtime для чата, если ещё не включён.
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'party_messages'
+  ) then
+    alter publication supabase_realtime add table public.party_messages;
+  end if;
+end $$;
+
 -- Индексы для быстрого поиска
 create index if not exists idx_friendships_requester on public.friendships (requester_id);
 create index if not exists idx_friendships_addressee on public.friendships (addressee_id);
@@ -372,3 +489,5 @@ create index if not exists idx_custom_recipes_public on public.custom_recipes (i
 create index if not exists idx_party_bill_items_party on public.party_bill_items (party_id);
 create index if not exists idx_party_bill_shares_item on public.party_bill_shares (item_id);
 create index if not exists idx_party_bill_shares_party on public.party_bill_shares (party_id);
+create index if not exists idx_recipe_reports_recipe on public.custom_recipe_reports (recipe_id);
+create index if not exists idx_party_messages_party on public.party_messages (party_id, created_at);

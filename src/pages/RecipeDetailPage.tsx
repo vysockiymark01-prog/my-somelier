@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getRecipeById, type Ingredient } from '../data/recipes'
-import { getMyRecipeById, deleteCustomRecipe } from '../lib/customRecipes'
+import { getMyRecipeById, deleteCustomRecipe, reportRecipe } from '../lib/customRecipes'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { useAuth } from '../store/auth'
 import { hasMade, recordMade } from '../lib/history'
@@ -31,6 +31,7 @@ interface DisplayRecipe {
   tip?: string | null
   isCustom: boolean
   ownerId?: string
+  isPublic?: boolean
 }
 
 export function RecipeDetailPage() {
@@ -40,6 +41,8 @@ export function RecipeDetailPage() {
 
   const [recipe, setRecipe] = useState<DisplayRecipe | null | undefined>(undefined)
   const [deleting, setDeleting] = useState(false)
+  const [reported, setReported] = useState(false)
+  const [reporting, setReporting] = useState(false)
 
   useEffect(() => {
     if (!id) {
@@ -75,6 +78,7 @@ export function RecipeDetailPage() {
           tip: row.tip,
           isCustom: true,
           ownerId: row.owner_id,
+          isPublic: row.is_public,
         })
       })
       .catch(() => setRecipe(null))
@@ -160,6 +164,21 @@ export function RecipeDetailPage() {
   }
 
   const canDelete = recipe.isCustom && user && recipe.ownerId === user.id
+  const canReport = recipe.isCustom && recipe.isPublic && user && recipe.ownerId !== user.id
+
+  const handleReport = async () => {
+    if (!recipe) return
+    setReporting(true)
+    try {
+      await reportRecipe(recipe.id, (user as { id: string }).id)
+      setReported(true)
+    } catch {
+      // молча игнорируем — например, если уже жаловались раньше
+      setReported(true)
+    } finally {
+      setReporting(false)
+    }
+  }
 
   return (
     <div className="page">
@@ -167,11 +186,29 @@ export function RecipeDetailPage() {
         <button className="icon-btn" onClick={() => navigate(-1)}>
           ←
         </button>
-        {canDelete && (
-          <button className="icon-btn" onClick={handleDelete} disabled={deleting} aria-label="Удалить">
-            🗑
-          </button>
-        )}
+        <div className="row" style={{ gap: 8 }}>
+          {canDelete && (
+            <button className="icon-btn" onClick={() => navigate(`/recipe/${recipe.id}/edit`)} aria-label="Редактировать">
+              ✏️
+            </button>
+          )}
+          {canDelete && (
+            <button className="icon-btn" onClick={handleDelete} disabled={deleting} aria-label="Удалить">
+              🗑
+            </button>
+          )}
+          {canReport && (
+            <button
+              className="icon-btn"
+              onClick={handleReport}
+              disabled={reporting || reported}
+              aria-label="Пожаловаться"
+              title="Пожаловаться на рецепт"
+            >
+              {reported ? '✅' : '🚩'}
+            </button>
+          )}
+        </div>
       </div>
 
       <div style={{ fontSize: 52, textAlign: 'center' }}>{recipe.emoji}</div>

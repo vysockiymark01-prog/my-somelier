@@ -1,15 +1,17 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { AuthGate } from '../components/AuthGate'
 import { useAuth } from '../store/auth'
-import { CATEGORIES } from '../data/recipes'
-import { createCustomRecipe } from '../lib/customRecipes'
+import { CATEGORIES, type Category } from '../data/recipes'
+import { createCustomRecipe, getMyRecipeById, updateCustomRecipe } from '../lib/customRecipes'
 
 const ABV_OPTIONS = ['Безалкогольный', 'Лёгкий', 'Крепкий']
 
 function NewRecipeInner() {
   const { user } = useAuth()
   const navigate = useNavigate()
+  const { id: editId } = useParams()
+  const isEdit = Boolean(editId)
   const [name, setName] = useState('')
   const [emoji, setEmoji] = useState('🍹')
   const [category, setCategory] = useState(CATEGORIES[0])
@@ -23,6 +25,37 @@ function NewRecipeInner() {
   const [isPublic, setIsPublic] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [loading, setLoading] = useState(isEdit)
+
+  useEffect(() => {
+    if (!editId || !user) return
+    let cancelled = false
+    getMyRecipeById(editId)
+      .then((recipe) => {
+        if (cancelled || !recipe) return
+        if (recipe.owner_id !== user.id) {
+          setError('Это не ваш рецепт')
+          return
+        }
+        setName(recipe.name)
+        setEmoji(recipe.emoji)
+        setCategory(recipe.category as Category)
+        setAbv(recipe.abv)
+        setGlass(recipe.glass ?? '')
+        setTime(recipe.time ?? '')
+        setIngredients(recipe.ingredients.length ? recipe.ingredients : [{ name: '', amount: '' }])
+        setSteps(recipe.steps.length ? recipe.steps : [''])
+        setGarnish(recipe.garnish ?? '')
+        setTip(recipe.tip ?? '')
+        setIsPublic(recipe.is_public)
+      })
+      .catch((err) => setError((err as Error).message))
+      .finally(() => !cancelled && setLoading(false))
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editId, user])
 
   const updateIngredient = (i: number, field: 'name' | 'amount', value: string) => {
     setIngredients((prev) => prev.map((ing, idx) => (idx === i ? { ...ing, [field]: value } : ing)))
@@ -54,8 +87,7 @@ function NewRecipeInner() {
 
     setSaving(true)
     try {
-      const recipe = await createCustomRecipe({
-        ownerId: user.id,
+      const payload = {
         name,
         emoji,
         category,
@@ -67,13 +99,24 @@ function NewRecipeInner() {
         garnish,
         tip,
         isPublic,
-      })
+      }
+      const recipe = isEdit
+        ? await updateCustomRecipe(editId as string, payload)
+        : await createCustomRecipe({ ownerId: user.id, ...payload })
       navigate(`/recipe/${recipe.id}`)
     } catch (err) {
       setError((err as Error).message)
     } finally {
       setSaving(false)
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="page">
+        <p className="helper-text">Загрузка…</p>
+      </div>
+    )
   }
 
   return (
@@ -83,8 +126,12 @@ function NewRecipeInner() {
           ←
         </button>
       </div>
-      <h1 className="page-title">Свой рецепт</h1>
-      <p className="page-subtitle">Добавьте напиток, которого нет в каталоге — он появится только у вас</p>
+      <h1 className="page-title">{isEdit ? 'Редактировать рецепт' : 'Свой рецепт'}</h1>
+      <p className="page-subtitle">
+        {isEdit
+          ? 'Измените и сохраните рецепт'
+          : 'Добавьте напиток, которого нет в каталоге — он появится только у вас'}
+      </p>
 
       <form onSubmit={handleSubmit}>
         <div className="form-field">
@@ -223,7 +270,7 @@ function NewRecipeInner() {
 
         {error && <p className="error-text">{error}</p>}
         <button className="btn btn-gold btn-block" type="submit" disabled={saving}>
-          {saving ? 'Сохраняем…' : 'Сохранить рецепт'}
+          {saving ? 'Сохраняем…' : isEdit ? 'Сохранить изменения' : 'Сохранить рецепт'}
         </button>
       </form>
     </div>

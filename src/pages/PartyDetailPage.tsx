@@ -16,10 +16,20 @@ import {
   listBillShares,
   addBillShare,
   removeBillShare,
+  removeGuestFromParty,
+  listMessages,
+  sendMessage,
+  subscribeToMessages,
   type FriendshipWithProfile,
   type PartyWithGuests,
 } from '../lib/social'
-import type { PartyMenuVoteRow, PartyBillItemRow, PartyBillShareRow, Profile } from '../lib/supabase'
+import type {
+  PartyMenuVoteRow,
+  PartyBillItemRow,
+  PartyBillShareRow,
+  PartyMessageRow,
+  Profile,
+} from '../lib/supabase'
 import { computeBalances, settleUp } from '../lib/billSplit'
 import { RECIPES, getRecipeById } from '../data/recipes'
 
@@ -54,24 +64,29 @@ function PartyDetailInner() {
   const [newItemTitle, setNewItemTitle] = useState('')
   const [newItemPrice, setNewItemPrice] = useState('')
   const [newItemPaidBy, setNewItemPaidBy] = useState('')
+  const [messages, setMessages] = useState<PartyMessageRow[]>([])
+  const [chatInput, setChatInput] = useState('')
+  const [sendingMessage, setSendingMessage] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   const load = async () => {
     if (!user || !id) return
     try {
-      const [parties, fr, partyVotes, items, shares] = await Promise.all([
+      const [parties, fr, partyVotes, items, shares, msgs] = await Promise.all([
         listParties(user.id),
         listFriendships(user.id),
         listPartyVotes(id),
         listBillItems(id),
         listBillShares(id),
+        listMessages(id),
       ])
       setParty(parties.find((p) => p.id === id) ?? null)
       setFriendships(fr.filter((f) => f.status === 'accepted'))
       setVotes(partyVotes)
       setBillItems(items)
       setBillShares(shares)
+      setMessages(msgs)
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -83,6 +98,14 @@ function PartyDetailInner() {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, id])
+
+  useEffect(() => {
+    if (!id) return
+    const unsubscribe = subscribeToMessages(id, (row) => {
+      setMessages((prev) => (prev.some((m) => m.id === row.id) ? prev : [...prev, row]))
+    })
+    return unsubscribe
+  }, [id])
 
   if (loading) {
     return (
@@ -139,6 +162,7 @@ function PartyDetailInner() {
   }
   const balances = computeBalances(billItems, billShares)
   const settlements = settleUp(balances)
+  const currency = party.currency || '₽'
 
   const handleInvite = async (guestId: string) => {
     try {
@@ -217,6 +241,31 @@ function PartyDetailInner() {
       await load()
     } catch (e) {
       setError((e as Error).message)
+    }
+  }
+
+  const handleRemoveGuest = async (guestRowId: string) => {
+    try {
+      await removeGuestFromParty(guestRowId)
+      await load()
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!user || !chatInput.trim()) return
+    setSendingMessage(true)
+    try {
+      await sendMessage(party.id, user.id, chatInput)
+      setChatInput('')
+      const msgs = await listMessages(party.id)
+      setMessages(msgs)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setSendingMessage(false)
     }
   }
 
@@ -352,7 +401,7 @@ function PartyDetailInner() {
             <input
               className="text-input"
               style={{ flex: 1, minWidth: 90 }}
-              placeholder="Цена ₽"
+              placeholder={`Цена ${currency}`}
               inputMode="decimal"
               value={newItemPrice}
               onChange={(e) => setNewItemPrice(e.target.value)}
@@ -386,7 +435,7 @@ function PartyDetailInner() {
                   <div key={item.id} className="list-row" style={{ alignItems: 'flex-start' }}>
                     <div>
                       <div>
-                        {item.title} — {item.price.toFixed(0)} ₽
+                        {item.title} — {item.price.toFixed(0)} {currency}
                       </div>
                       <div className="helper-text" style={{ margin: 0 }}>
                         Платил: {participantName(item.paid_by)}
@@ -424,11 +473,70 @@ function PartyDetailInner() {
                   <div>
                     {participantName(s.fromUserId)} → {participantName(s.toUserId)}
                   </div>
-                  <span className="tag">{s.amount.toFixed(0)} ₽</span>
+                  <span className="tag">{s.amount.toFixed(0)} {currency}</span>
                 </div>
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {canVote && (
+        <div className="card">
+          <h2 style={{ fontSize: 15, margin: '0 0 8px' }}>💬 Чат вечеринки</h2>
+          <div
+            style={{
+              maxHeight: 280,
+              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+              marginBottom: 12,
+            }}
+          >
+            {messages.length === 0 ? (
+              <p className="helper-text" style={{ margin: 0 }}>
+                Пока никто не написал. Договоритесь, во сколько встречаемся и кто что берёт.
+              </p>
+            ) : (
+              messages.map((m) => {
+                const sender = participants.find((p) => p.id === m.sender_id)
+                const mine = m.sender_id === user?.id
+                return (
+                  <div
+                    key={m.id}
+                    style={{
+                      alignSelf: mine ? 'flex-end' : 'flex-start',
+                      maxWidth: '80%',
+                      background: mine ? 'var(--gold-soft)' : 'var(--surface-2, rgba(255,255,255,0.06))',
+                      color: mine ? '#1a1a1a' : 'inherit',
+                      borderRadius: 12,
+                      padding: '6px 10px',
+                    }}
+                  >
+                    {!mine && (
+                      <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 2 }}>
+                        {sender ? sender.display_name ?? sender.username : 'Гость'}
+                      </div>
+                    )}
+                    <div style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}>{m.body}</div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+          <form onSubmit={handleSendMessage} className="row" style={{ gap: 8 }}>
+            <input
+              className="text-input"
+              style={{ flex: 1 }}
+              placeholder="Написать в чат…"
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+            />
+            <button className="btn btn-gold" type="submit" disabled={sendingMessage || !chatInput.trim()}>
+              Отправить
+            </button>
+          </form>
         </div>
       )}
 
@@ -443,11 +551,23 @@ function PartyDetailInner() {
                 <div className="avatar">{g.guest.avatar_emoji ?? '🍸'}</div>
                 <div>{g.guest.display_name ?? g.guest.username}</div>
               </div>
-              <span
-                className={'badge ' + (g.status === 'going' ? 'badge-success' : 'badge-pending')}
-              >
-                {STATUS_LABEL[g.status]}
-              </span>
+              <div className="row" style={{ gap: 8 }}>
+                <span
+                  className={'badge ' + (g.status === 'going' ? 'badge-success' : 'badge-pending')}
+                >
+                  {STATUS_LABEL[g.status]}
+                </span>
+                {isHost && (
+                  <button
+                    className="icon-btn"
+                    onClick={() => handleRemoveGuest(g.id)}
+                    aria-label="Убрать гостя"
+                    title="Убрать гостя"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
             </div>
           ))
         )}

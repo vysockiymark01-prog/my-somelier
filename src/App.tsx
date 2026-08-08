@@ -57,6 +57,7 @@ function App() {
           <Route path="/swipe" element={<SwipePage />} />
           <Route path="/quiz" element={<QuizPage />} />
           <Route path="/recipe/new" element={<NewRecipePage />} />
+          <Route path="/recipe/:id/edit" element={<NewRecipePage />} />
           <Route path="/achievements" element={<AchievementsPage />} />
           <Route path="/personality" element={<PersonalityQuizPage />} />
           <Route path="/auth" element={<AuthPage />} />

@@ -83,3 +83,53 @@ export async function deleteCustomRecipe(id: string) {
   const { error } = await client.from('custom_recipes').delete().eq('id', id)
   if (error) throw error
 }
+
+export interface UpdateCustomRecipeInput {
+  name: string
+  emoji: string
+  category: string
+  glass: string
+  abv: string
+  time: string
+  ingredients: Ingredient[]
+  steps: string[]
+  garnish: string
+  tip: string
+  isPublic: boolean
+}
+
+export async function updateCustomRecipe(id: string, input: UpdateCustomRecipeInput) {
+  const client = requireClient()
+  const { data, error } = await client
+    .from('custom_recipes')
+    .update({
+      name: input.name.trim(),
+      emoji: input.emoji.trim() || '🍹',
+      category: input.category,
+      glass: input.glass.trim(),
+      abv: input.abv,
+      time: input.time.trim(),
+      ingredients: input.ingredients,
+      steps: input.steps,
+      garnish: input.garnish.trim() || null,
+      tip: input.tip.trim() || null,
+      is_public: input.isPublic,
+    })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data as CustomRecipeRow
+}
+
+// Пожаловаться на публичный рецепт сообщества. При накоплении 3+ жалоб
+// БД-триггер автоматически скрывает рецепт (is_public = false).
+export async function reportRecipe(recipeId: string, reporterId: string, reason?: string) {
+  const client = requireClient()
+  const { error } = await client.from('custom_recipe_reports').insert({
+    recipe_id: recipeId,
+    reporter_id: reporterId,
+    reason: reason?.trim() || null,
+  })
+  if (error) throw error
+}
