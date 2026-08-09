@@ -19,7 +19,7 @@ export default defineConfig({
       manifest: {
         id: base,
         name: 'Мой сомелье',
-        short_name: 'Сомелье',
+        short_name: 'Мой сомелье',
         description:
           'Рецепты коктейлей и напитков с голосом бариста, друзья и вечеринки.',
         theme_color: '#1a0f2e',
@@ -56,7 +56,9 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,svg,ico,woff2}'],
-        navigateFallbackDenylist: [/^\/auth\//],
+        // Статические страницы вне SPA-приложения (не должны подменяться
+        // на index.html офлайн-фолбэком service worker'а).
+        navigateFallbackDenylist: [/\/auth\//, /\/privacy\.html$/],
       },
       devOptions: {
         enabled: false,
