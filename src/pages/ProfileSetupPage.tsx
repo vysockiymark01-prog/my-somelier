@@ -13,6 +13,11 @@ export function ProfileSetupPage() {
   if (!user) {
     return (
       <div className="page">
+        <div className="row" style={{ marginBottom: 10 }}>
+          <button className="icon-btn" onClick={() => navigate(-1)}>
+            ←
+          </button>
+        </div>
         <p className="page-subtitle">Сначала войдите в аккаунт.</p>
       </div>
     )
@@ -37,6 +42,11 @@ export function ProfileSetupPage() {
 
   return (
     <div className="page">
+      <div className="row" style={{ marginBottom: 10 }}>
+        <button className="icon-btn" onClick={() => navigate(-1)}>
+          ←
+        </button>
+      </div>
       <h1 className="page-title">Создайте профиль</h1>
       <p className="page-subtitle">Друзья будут находить вас по имени пользователя</p>
 
